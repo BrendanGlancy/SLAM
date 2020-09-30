@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sld2
 import sld2.ext
 
 class Display(object):

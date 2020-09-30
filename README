@@ -1,2 +1,8 @@
 SLAM Algorithm implimented on a couple of mp4 of people driving
 
+Dependencies:
+pip install pygame
+pip install PySDL2
+pip install opencv-python
+
+

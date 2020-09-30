@@ -2,21 +2,25 @@
 
 import time
 import cv2
-import sdl2
-import sdl2.ext
-sdl2.ext.init()
+from display import Display
+
 
 W = 1920//2
 H = 1080//2
 
 disp = Display(W,H)
-orb = cv2.ORB()
+orb = cv2.ORB_create()
+print(dir(orb))
 
 def process_frame(img):
-    # keyPoint1 and descriptors1 detect and compute 
-    kp1, des1 = orb.detectAndCompute(img1,None)
-
     img = cv2.resize(img, (W,H))
+
+    # keyPoint and descriptors detect and compute 
+    kp, des = orb.detectAndCompute(img1,None)
+    for p in kp:
+        print(p)
+
+
     disp.paint(img)
 
 

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import sld2.ext
 
-class display(object):
+class Display(object):
     def __init__(self, W, H):
+        sdl2.ext.init()
+
         self.W, self.H = W, H
         self.window = sdl2.ext.Window("Slam", size=(W,H), position=(-500,-500))
         self.window.show()

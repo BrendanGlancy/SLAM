@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sld2
 import sld2.ext
 
@@ -18,8 +17,8 @@ class Display(object):
                 exit(0)
         
         # draw
-        surf = sdl2.ext.pixels2d(window.get_surface())
-        surf[:, :, 0:3] = img.swapaxes(0,1)[:, :, 0]
+        surf = sdl2.ext.pixels3d(window.get_surface())
+        surf[:, :, 0:3] = img.swapaxes(0,1)
 
         # blit
         self.window.refresh()

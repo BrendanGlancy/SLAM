@@ -22,6 +22,3 @@ class Display(object):
 
         # blit
         self.window.refresh()
-
-
-

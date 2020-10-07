@@ -3,37 +3,50 @@
 import time
 import cv2
 from display import Display
-from extractor import Extractor
+from frame import Frame, denormalize, match_frames, IRt
 import numpy as np
+import g20
 
-W = 1920//2
-H = 1080//2
+import OpenGL.GL as gl
+import pangolin
 
-disp = Display(W,H)
-fe = Extractor()
+# camera intrinsics
+W, H = 1920//2, 1080//2
 
-def process_frame(img):
-    img = cv2.resize(img, (W,H))
-    matches = fe.extract(img)
+F = 270
+K = np.array([F,0,W//2],[0,F,H//2],[0,0,1]])
 
-    print("%d matches" % (len(matches)))
+from multiprocessing import Process, Queue
 
-    for pt1, pt2 in matches:
-        u1,v1 = map(lambda x: int(round(x)), pt1)
-        u2,v2 = map(lambda x: int(round(x)), pt2)
-        cv2.circle(img (u1, v1), color=(0,255,0), radius=3)
-        cv2.line(img, (u1, v1), (u2, v2), color=(255,0,0))
+class Map(object):
+    def __init__(self):
+        self.frames = []
+        self.points = []
+        self.state = None
+        self.q = Queue()
 
-    disp.paint(img)
+        p = Process(target=self.viewer_thread, arg=self.q))
+        p.daemon = True
+        p.start()
 
+    def viewer_thread(self, q):
+        self.viewer_init()
+        while 1:
+            self.viewer_refresh(q)
 
-if __name__ == '__main__':
-    cap = cv2.VideoCapture("test.mp4")
+    def viewer_init(self):
+        pangolin.CreateWindowAndBind('Main', 640, 480)
+        gl.glEnable(gl.GL_DEPTH_TEST)
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if ret == True:
-            process_frame(frame)
-        else:
-            break
+        self.scam = pangolin.OpenGlRenderState( pangolin.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 100),
+                      pangolin.ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin.AxisDirection.AxisY))
+        self.handler = pangolin.Handler3D(self.scam)
+
+        # Creat Interactive View in Window
+        self.dcam = pangolin.CreateDisplay()
+        self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0/480.0)
+        self.dcam.SetHandler(self.handler)
+
+    def viewer_refresh(self, q):
+        
 

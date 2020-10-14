@@ -12,7 +12,7 @@ class Display(object):
     def draw(self, img):
         # junk
         events = sdl2.ext.get_events()
-        for event in envents:
+        for event in events:
             if event.type == sdl2.SDL_QUIT:
                 exit(0)
         

@@ -9,7 +9,7 @@ class Display(object):
         self.window = sdl2.ext.Window("Slam", size=(W,H), position=(-500,-500))
         self.window.show()
 
-    def draw(self, img):
+    def paint(self, img):
         # junk
         events = sdl2.ext.get_events()
         for event in events:
@@ -17,7 +17,7 @@ class Display(object):
                 exit(0)
         
         # draw
-        surf = sdl2.ext.pixels3d(window.get_surface())
+        surf = sdl2.ext.pixels3d(self.window.get_surface())
         surf[:, :, 0:3] = img.swapaxes(0,1)
 
         # blit

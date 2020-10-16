@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 np.set_printoptions(suppress=True)
@@ -10,28 +11,35 @@ from skimage.transform import EssentialMatrixTransform
 def add_ones(x):
     return np.concatenate([n, np.ones((x.shape[0], 1))], axis=1)
 
-IRt = np.eye(4)
+def add_ones(x):
+    return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
+
+def poseRt(R, t):
+    ret = np.eye(4)
+    ret[:3, :3] = R
+    ret[:3, 3] = t
+    return ret
 
 # pose
-def extractRt(E):
+def extractRt(F):
     W = np.mat([[0,-1,0],[1,0,0],[0,0,1]],dtype=float)
     U,d,Vt = np.linalg.svd(F)
-    assert np.linalg.det(U) > 0
+    if np.linalg.det(U) < 0:
+        U *= -1.0
     if np.linalg.det(Vt) < 0:
         Vt *= -1.0
     R = np.dot(np.dot(U, W), Vt)
     if np.sum(R.diagonal()) < 0:
         R = np.dot(np.dot(U, W.T), Vt)
     t = U[:,2]
-    ret = np.eye(4)
-    ret[:3, :3] = R
-    ret[:3, 3] = t
-    return ret
+    if os.getenv("REVERSE") is not None:
+        t *= -1
+    return np.linalg.inv(postRt(R, t))
 
 def extract(img):
     orb = cv2.ORB_create()
     # Detection
-    pts = cv2.goodFeaturesToTrack(np.mean(img, axis=2).astype(np.uint8), 1000, qualityLevel=0.01, minDistance=7)
+    pts = cv2.goodFeaturesToTrack(np.mean(img, axis=2).astype(np.uint8), 3000, qualityLevel=0.01, minDistance=7)
 
     # Extraction
     kps = [cv2.KeyPoint(x=f[0][0], y=f[0][1], _size=20) for f in pts]
@@ -64,10 +72,15 @@ def match_frames(f1, f2):
             # travel less than 10% of diagonal and be within orb distance 32
             if np.linalg.norm((p1-p2)) < 0.1*np.linalg.norm([f1.w, f1.h]) and m.distance < 32:
                 # keep around indices
+                # TODO: refactor this
                 idx1.append(m.queryIdx)
                 idx2.append(m.trainIdx)
 
                 ret.append((p1, p2))
+
+    # no duplicates
+    assert(len(set(idx1)) == len(idx1))
+    assert(len(set(idx2)) == len(idx2))
 
     assert len(ret) >= 8
     ret = np.array(ret)
@@ -101,18 +114,4 @@ class Frame(object):
         self.pts = [None]*len(self.kps)
 
         self.id = len(mapp.frames)
-        mapp.frames.append(self)
-    ret.append((p1, p2))
-
-
-class Frame(object):
-    def __init__(self, mapp, img, K):
-        self.K = K
-        self.Kinv = np.linalg.inv(self.K)
-        self.pose = IRt
-
-        pts, self.des = extract(img)
-        self.pts = normalize(self.Kinv, pts)
-
-        self.id = lenn(mapp.frames)
         mapp.frames.append(self)

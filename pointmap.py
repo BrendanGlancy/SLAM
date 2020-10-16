@@ -1,8 +1,13 @@
+from multiprocessing import Process, Queue
+from frame import poseRt
+import time
 import numpy as np
 import OpenGL.GL as gl
 import pangolin
+import g20
 
-from multiprocessing import Processm Queue
+LOCAL_WINDOW = 20
+
 
 class Point(object):
     # A point is a 3-D point in the world
@@ -12,9 +17,26 @@ class Point(object):
         self.pt = loc
         self.frames = []
         self.idxs = []
+        self.color = np.copy(color)
 
-        self.id = len(mapp.points)
+        self.id = mapp.max_point
+        mapp.max_point += 1
         mapp.points.append(self)
+
+    def homogeneous(self):
+        return np.array([self.pt[0], self.pt[1], self.pt[2], 1.0])
+
+    def orb(self):
+        # TODO: average the orbs in hamming space
+        des = []
+        for f in self.frames:
+            des.append(f.des[f.pts.index(self)])
+        return des
+
+    def delete(self):
+        for f in self.frames:
+            f.pts[f.pts.index(self)] = None
+        del self
 
     def add_observation(self, frame, idx):
         frame.pts[idx] = self
@@ -25,49 +47,51 @@ class Map(object):
     def __init__(self):
         self.frame = []
         self.points = []
+        self.max_point = 0
         self.state = None
         self.q = None
 
-    def create_viewer(self):
-        self.q = Queue()
-        self.vp = Process(target=self.viewer_thread, args=(self.q,))
-        self.vp.daemon = True
-        self.vp.start()
+    # optimizer
+    
+    def optimize(self,local_window=LOCAL_WINDOW, fix_points=False, verbose=False):
+        # create g20 optimizer
+        opt = g20.SparseOptimizer()
+        solver = g2o.BlockSovlerSE3(g20.LinearSolverCholmodSE3())
+        solver = g20.OptimizerAlgorithLevenberg(solver)
+        opt.set_algorithm(solver)
 
-    def viewer_init(self, w, h):
-        pangolin.CreateWindowAndBind('Main', w, h)
-        gl.glEnable(gl.GL_DEPTH_TEST)
+        robust_kernal = g20.RobustKernalHuber(n.sqrt(5.991))
 
-        self.scam = pangolin.OpenGIRenderState(
-                pangolin.ProjectionMatrix(w, h, 420, 420, w//2, h//2, 0.2, 10000),
-                pangolin.ModelViewLookAt(0, -10, -8,
-                                         0, 0, 0,
-                                         0, -1, 0))
-        self.handler = pangolin.Handler3D(self.scam)
+        if local_window is None:
+            local_frames = self.frames
+        else:
+            local_frames =self.frames[-local_window:]
 
-        # Create Interactive View in Window
-        self.dcam = pangolin.CreateDisplay()
-        self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -w/h)
-        self.dcam.SetHandler(self.handler)
+        # add frames to graph
+        for f in self.frames:
+            pose = np.linalg.inv(f.pose)
+            sbacam = g2o.SBACam(g2o.SE3Quat(pose[0:3, 0:3], pose[0:3, 3]))
+            sbacam.set_cam(f.K[0][0], f.K[1][1], f.K[0][2], f.K[1][2], 1.0)
 
-    def viewer_refresh(self, q):
-        if self.state is None or not q.empty():
-            self.state = q.get()
+            v_se3 = g2o.VertexCam()
+            v_se3.set_id(f.id)
+            v_se3.set_estimate(sbacam)
+            v_se3.set_fixed(f.id <= 1 or f not in local_frames)
+            opt.add_vertex(v_se3)
+            
+        # add points to frames
+        PT_ID_OFFSET = 0x10000
+        for p in self.points:
+            if not any([f in local_frames for f in p.frames]):
+                continue
 
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        gl.glClearColor(1.0, 1.0, 1.0, 1.0)
-        self.dcam.Activate(self.scam)
+            pt = g20.VertexSBAPointXYZ()
+            pt.set_estimate(p.pt[0:3])
+            pt.set_marginalized(True)
+            pt.set_fixed(fix_points)
+            opt.add_vertex(pt)
 
-        # Draw poses 
-        gl.glColor3f(0.0, 1.0, 0.0)
-        pangolin.DrawCameras(self.state[0])
-
-        # draw keypoints
-        gl.glPointSize(2)
-        gl.glColor3f(1.0, 0.0, 0.0)
-        pangolin.DrawPoints(self.state[1])
-
-        pangolin.FinishFrame()
+            for f in p.frames:
 
     def display(self):
         if self.q is None:
